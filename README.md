@@ -20,6 +20,7 @@ Built with Python + GTK4/libadwaita. Made by codismodiss.
 | Steam Deck   | x265   | Opus    | 1280×800   | MKV       |
 | iOS          | x264   | AAC     | 1920×1080  | MP4       |
 | Android      | x264   | AAC     | 1920×1080  | MP4       |
+
 Vita, PSP, and 3DS auto-select hardsubs since those platforms can't render soft subs.
 ## Requirements
 **Arch/Manjaro:**
