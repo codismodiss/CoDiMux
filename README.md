@@ -1,12 +1,12 @@
 # CoDiMux
-ffmpeg GUI I made because I got tired of writing bash scripts every time I wanted to encode something. Does what it says — picks your tracks, runs ffmpeg, done.
+ffmpeg GUI I made because I got tired of writing bash scripts every time I wanted to encode something.
 Built with Python + GTK4/libadwaita. Made by codismodiss.
 ## What it does
 - Pick which audio and subtitle tracks to keep
 - Soft subs by default, burn in hardsubs if you want
-- Smart stream copy — if the video is already x265 and within your target resolution it just copies it instead of re-encoding (saves a ton of time)
-- Batch mode — set it up once and let it run through a whole folder unattended
-- Presets for PC, PS Vita, PSP, 3DS, Steam Deck, Android — all tuned for what those platforms actually need
+- Smart stream copy - if the video is already x265 and within your target resolution it just copies it instead of re-encoding (saves a ton of time)
+- Batch mode - set it up once and let it run through a whole folder unattended
+- Presets for PC, PS Vita, PSP, 3DS, Steam Deck, Android (pre-configured for what those platforms need to play video)
 - Preset editor with CRF slider, resolution, codec, bitrate, container
 - In-app ffmpeg log so you can see what's actually happening
 - First run setup for theme and config path
@@ -47,8 +47,8 @@ python3 ~/.local/share/codimux/codimux.py
 ```
 ## Config
 Stored at `~/.config/codimux/` by default, changeable on first launch or in settings.
-- `settings.json` — theme, paths, preferences
-- `presets.json` — all your presets including custom ones
+- `settings.json` - theme, paths, preferences
+- `presets.json` - all your presets including custom ones
 If you move the config folder, a pointer file at `~/.codimux_path` keeps track of where it went.
 ## Uninstall
 ```bash
@@ -59,7 +59,7 @@ rm -rf ~/.config/codimux
 rm -f ~/.codimux_path
 ```
 ## Stack
-Python, GTK4, libadwaita, PyGObject. Calls ffmpeg and ffprobe as subprocesses — no funny business.
+Python, GTK4, libadwaita, PyGObject. Calls ffmpeg and ffprobe as subprocesses
 ---
 ## Planned (v0.2)
 - .deb + apt repo
