@@ -80,8 +80,7 @@ Python, GTK4, libadwaita, PyGObject. Calls ffmpeg and ffprobe as subprocesses â€
 
 ## Planned (v0.2)
 
-- AUR package
 - .deb + apt repo
 - Flatpak
-- DE-aware theming â€” detects KDE/GNOME/Hyprland and adapts. KDE will nudge you to install breeze-gtk if it's not already there, with a button that opens the page for it
+- DE-aware theming - detects KDE/GNOME/Hyprland and adapts. KDE will nudge you to install breeze-gtk if it's not already there, with a button that opens the page for it
 - Guided UI tour on first launch
