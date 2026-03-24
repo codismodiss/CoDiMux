@@ -32,10 +32,11 @@ sudo pacman -S ffmpeg python-gobject libadwaita
 sudo apt install ffmpeg python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1
 ```
 ## Install
-**AUR:** (Or any AUR helper)
+**AUR:**
 ```bash
 yay -S codimux
 ```
+(Or any AUR helper)
 **Manual:**
 ```bash
 chmod +x install.sh
