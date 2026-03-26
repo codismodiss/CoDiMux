@@ -27,7 +27,9 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         self._apply_theme()
 
         # State
-        self._input_dir: str = config.get("last_input_dir", str(Path.home()))
+        self._input_dir: str = config.get("last_input_dir", "")
+        self._skip_existing: bool = True
+        self._remember_folder: bool = config.get("remember_folder", True)
         self._video_files: list[str] = []
         self._probe_cache: dict[str, ProbeResult] = {}
         self._selected_preset_key: str = list(config.presets.keys())[0] if config.presets else "PC"
@@ -41,6 +43,10 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         self._log_lines: list[str] = []
 
         self._build_ui()
+
+        # Auto-load last folder if remember is on
+        if self._remember_folder and self._input_dir and Path(self._input_dir).exists():
+            self._scan_folder()
 
     # ── Theme ─────────────────────────────────────────────────────────────────
     def _apply_theme(self):
@@ -135,6 +141,14 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         open_btn.set_css_classes(["flat"])
         open_btn.connect("clicked", self._on_open_folder)
         left_header.append(open_btn)
+
+        self._recursive_btn = Gtk.ToggleButton()
+        self._recursive_btn.set_icon_name("folder-visiting-symbolic")
+        self._recursive_btn.set_tooltip_text("Recursive — scan subfolders")
+        self._recursive_btn.set_css_classes(["flat"])
+        self._recursive_btn.connect("toggled", self._on_recursive_toggled)
+        left_header.append(self._recursive_btn)
+
         left.append(left_header)
         left.append(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL))
 
@@ -291,6 +305,16 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         batch_row.add_suffix(self._batch_switch)
         output_group.add(batch_row)
 
+        skip_row = Adw.ActionRow()
+        skip_row.set_title("Skip Already Encoded")
+        skip_row.set_subtitle("Skip files that already have an output in the encode_output folder")
+        self._skip_switch = Gtk.Switch()
+        self._skip_switch.set_active(True)
+        self._skip_switch.set_valign(Gtk.Align.CENTER)
+        self._skip_switch.connect("notify::active", self._on_skip_toggled)
+        skip_row.add_suffix(self._skip_switch)
+        output_group.add(skip_row)
+
         # Progress
         self._progress_group = Adw.PreferencesGroup()
         self._progress_group.set_title("Progress")
@@ -402,7 +426,6 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         label = Gtk.Label()
         label.set_halign(Gtk.Align.START)
         label.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
-        label.set_max_width_chars(24)
         label.set_hexpand(True)
         row.append(check)
         row.append(label)
@@ -437,7 +460,8 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
             folder = dialog.select_folder_finish(result)
             if folder:
                 self._input_dir = folder.get_path()
-                self.config.set("last_input_dir", self._input_dir)
+                if self._remember_folder:
+                    self.config.set("last_input_dir", self._input_dir)
                 self._scan_folder()
         except Exception:
             pass
@@ -448,11 +472,27 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         self._video_files = []
         self._file_checked = []
         new_store = Gtk.StringList()
-        for f in sorted(Path(self._input_dir).iterdir()):
-            if f.is_file() and f.suffix.lower() in exts:
-                self._video_files.append(str(f))
-                self._file_checked.append(False)
-                new_store.append(f.name)
+        recursive = self._recursive_btn.get_active()
+        output_dir_name = self.config.get("output_dir_name", "encode_output")
+        p = Path(self._input_dir)
+
+        if recursive:
+            # rglob finds all files in all subfolders
+            files = sorted(f for f in p.rglob("*")
+                          if f.is_file()
+                          and f.suffix.lower() in exts
+                          and output_dir_name not in f.parts)
+        else:
+            files = sorted(f for f in p.iterdir()
+                          if f.is_file() and f.suffix.lower() in exts)
+
+        for f in files:
+            self._video_files.append(str(f))
+            self._file_checked.append(False)
+            # In recursive mode show relative path so you can tell which subfolder it's in
+            label = str(f.relative_to(p)) if recursive else f.name
+            new_store.append(label)
+
         self._file_store = new_store
         self._file_selection.set_model(new_store)
         has_files = len(self._video_files) > 0
@@ -474,11 +514,18 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
 
     def _on_select_all(self, btn):
         self._file_checked = [True] * len(self._video_files)
-        self._file_selection.set_model(self._file_store)  # force rebind
+        # Force ListView to rebind all items
+        self._file_selection.set_model(None)
+        self._file_selection.set_model(self._file_store)
 
     def _on_select_none(self, btn):
         self._file_checked = [False] * len(self._video_files)
-        self._file_selection.set_model(self._file_store)  # force rebind
+        self._file_selection.set_model(None)
+        self._file_selection.set_model(self._file_store)
+
+    def _on_recursive_toggled(self, btn):
+        if self._input_dir:  # rescan as long as a folder has been opened
+            self._scan_folder()
 
     def _probe_file(self, filepath: str):
         if filepath in self._probe_cache:
@@ -700,6 +747,9 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
     def _on_batch_toggled(self, switch, _):
         self._batch_mode = switch.get_active()
 
+    def _on_skip_toggled(self, switch, _):
+        self._skip_existing = switch.get_active()
+
     # ── Encoding ─────────────────────────────────────────────────────────────
     def _get_selected_audio_indices(self) -> list[int]:
         return [
@@ -764,7 +814,7 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         container = preset.get("container", "mkv")
         output_path = str(output_dir / f"{Path(filepath).stem}.{container}")
 
-        if Path(output_path).exists():
+        if Path(output_path).exists() and self._skip_existing:
             self._status_label.set_text(f"Skipping (exists): {filename}")
             self._queue_index += 1
             GLib.timeout_add(300, self._encode_next)
@@ -895,7 +945,11 @@ class CoDiMuxWindow(Adw.ApplicationWindow):
         from codimux.settings_dialog import SettingsDialog
         dialog = SettingsDialog(parent=self, config=self.config)
         dialog.connect("theme-changed", self._on_theme_changed)
+        dialog.connect("remember-changed", self._on_remember_changed)
         dialog.present()
 
     def _on_theme_changed(self, dialog):
         self._apply_theme()
+
+    def _on_remember_changed(self, dialog):
+        self._remember_folder = self.config.get("remember_folder", True)

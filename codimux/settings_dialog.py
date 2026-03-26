@@ -1,5 +1,5 @@
 """
-CoDiMux settings dialog.
+CoDiMux settings
 """
 
 import gi
@@ -10,9 +10,10 @@ from pathlib import Path
 from codimux.config import DEFAULT_CONFIG_DIR, POINTER_FILE
 
 
-class SettingsDialog(Adw.PreferencesWindow):
+class SettingsDialog(Adw.Window):
     __gsignals__ = {
         "theme-changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
+        "remember-changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
     }
 
     def __init__(self, parent, config, **kwargs):
@@ -20,23 +21,37 @@ class SettingsDialog(Adw.PreferencesWindow):
         self.set_transient_for(parent)
         self.set_modal(True)
         self.set_title("Settings")
-        self.set_default_size(500, 500)
+        self.set_default_size(500, 560)
         self.config = config
         self._build_ui()
 
     def _build_ui(self):
-        # ── Appearance page ───────────────────────────────────────────────────
-        appearance_page = Adw.PreferencesPage()
-        appearance_page.set_title("Appearance")
-        appearance_page.set_icon_name("preferences-desktop-appearance-symbolic")
-        self.add(appearance_page)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_content(outer)
 
-        theme_group = Adw.PreferencesGroup()
-        theme_group.set_title("Theme")
-        appearance_page.add(theme_group)
+        header = Adw.HeaderBar()
+        header.set_show_end_title_buttons(True)
+        outer.append(header)
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        outer.append(scroll)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
+        content.set_margin_top(20)
+        content.set_margin_bottom(20)
+        content.set_margin_start(20)
+        content.set_margin_end(20)
+        scroll.set_child(content)
+
+        # ── Appearance ────────────────────────────────────────────────────────
+        appearance_group = Adw.PreferencesGroup()
+        appearance_group.set_title("Appearance")
+        content.append(appearance_group)
 
         theme_row = Adw.ActionRow()
-        theme_row.set_title("Color Scheme")
+        theme_row.set_title("Theme")
         themes = ["Follow System", "Dark", "Light"]
         self._theme_combo = Gtk.DropDown.new_from_strings(themes)
         cur = self.config.get("theme", "system")
@@ -45,29 +60,38 @@ class SettingsDialog(Adw.PreferencesWindow):
         self._theme_combo.set_valign(Gtk.Align.CENTER)
         self._theme_combo.connect("notify::selected", self._on_theme_changed)
         theme_row.add_suffix(self._theme_combo)
-        theme_group.add(theme_row)
+        appearance_group.add(theme_row)
 
-        # ── Storage page ──────────────────────────────────────────────────────
-        storage_page = Adw.PreferencesPage()
-        storage_page.set_title("Storage")
-        storage_page.set_icon_name("drive-harddisk-symbolic")
-        self.add(storage_page)
+        # ── Behaviour ─────────────────────────────────────────────────────────
+        behaviour_group = Adw.PreferencesGroup()
+        behaviour_group.set_title("Behaviour")
+        content.append(behaviour_group)
 
-        dir_group = Adw.PreferencesGroup()
-        dir_group.set_title("Paths")
-        storage_page.add(dir_group)
+        remember_row = Adw.ActionRow()
+        remember_row.set_title("Remember Last Folder")
+        remember_row.set_subtitle("Reopen the last folder you used on startup")
+        self._remember_switch = Gtk.Switch()
+        self._remember_switch.set_active(self.config.get("remember_folder", True))
+        self._remember_switch.set_valign(Gtk.Align.CENTER)
+        self._remember_switch.connect("notify::active", self._on_remember_changed)
+        remember_row.add_suffix(self._remember_switch)
+        behaviour_group.add(remember_row)
+
+        # ── Storage ───────────────────────────────────────────────────────────
+        storage_group = Adw.PreferencesGroup()
+        storage_group.set_title("Storage")
+        content.append(storage_group)
 
         config_row = Adw.ActionRow()
         config_row.set_title("Config Directory")
         config_row.set_subtitle(str(self.config.config_dir))
         self._config_row = config_row
-
         change_config_btn = Gtk.Button(label="Change")
         change_config_btn.set_valign(Gtk.Align.CENTER)
         change_config_btn.set_css_classes(["flat"])
         change_config_btn.connect("clicked", self._on_change_config_dir)
         config_row.add_suffix(change_config_btn)
-        dir_group.add(config_row)
+        storage_group.add(config_row)
 
         output_row = Adw.ActionRow()
         output_row.set_title("Output Subfolder Name")
@@ -78,10 +102,7 @@ class SettingsDialog(Adw.PreferencesWindow):
         self._output_entry.set_max_width_chars(20)
         self._output_entry.connect("changed", self._on_output_name_changed)
         output_row.add_suffix(self._output_entry)
-        dir_group.add(output_row)
-
-        reset_group = Adw.PreferencesGroup()
-        storage_page.add(reset_group)
+        storage_group.add(output_row)
 
         reset_row = Adw.ActionRow()
         reset_row.set_title("Reset Config Location")
@@ -91,7 +112,7 @@ class SettingsDialog(Adw.PreferencesWindow):
         reset_btn.set_css_classes(["flat"])
         reset_btn.connect("clicked", self._on_reset_config_dir)
         reset_row.add_suffix(reset_btn)
-        reset_group.add(reset_row)
+        storage_group.add(reset_row)
 
     def _on_theme_changed(self, combo, _):
         scheme_map = {
@@ -101,9 +122,12 @@ class SettingsDialog(Adw.PreferencesWindow):
         }
         theme, scheme = scheme_map[combo.get_selected()]
         self.config.set("theme", theme)
-        # Apply instantly — StyleManager is global so this affects the whole app
         Adw.StyleManager.get_default().set_color_scheme(scheme)
         self.emit("theme-changed")
+
+    def _on_remember_changed(self, switch, _):
+        self.config.set("remember_folder", switch.get_active())
+        self.emit("remember-changed")
 
     def _on_change_config_dir(self, btn):
         dialog = Gtk.FileDialog()

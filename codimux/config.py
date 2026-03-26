@@ -19,7 +19,8 @@ DEFAULT_SETTINGS = {
     "theme": "system",          # "dark" | "light" | "system"
     "config_dir": str(DEFAULT_CONFIG_DIR),
     "output_dir_name": "encode_output",
-    "last_input_dir": str(Path.home()),
+    "last_input_dir": "",
+    "remember_folder": True,
 }
 
 DEFAULT_PRESETS = {
